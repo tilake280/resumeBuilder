@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChameleonCV - Tri-Sync Engine</title>
+    <style id="theme-styles">
+        /* Base App Interface Framework */
+        body { font-family: system-ui, -apple-system, sans-serif; background-color: #f4f6f8; margin: 0; padding: 20px; display: flex; flex-direction: column; gap: 15px; height: 100vh; box-sizing: border-box; color: #1e293b; }
+        header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #cbd5e1; padding-bottom: 10px; }
+        header h1 { font-size: 18px; font-weight: 700; margin: 0; color: #0f172a; }
+        
+        .main-container { display: flex; gap: 20px; flex: 1; overflow: hidden; }
+        .editor-panel, .preview-panel { flex: 1; display: flex; flex-direction: column; background: #fff; border-radius: 8px; border: 1px solid #cbd5e1; padding: 20px; overflow: hidden; }
+        
+        /* Collapsible Syntax Help Blueprint */
+        .syntax-help-container { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; margin-bottom: 10px; }
+        .syntax-help-trigger { width: 100%; background: none; border: none; padding: 10px 14px; text-align: left; font-size: 12px; font-weight: 700; color: #475569; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+        .syntax-help-content { padding: 0 14px 12px 14px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; border-top: 1px solid #f1f5f9; font-size: 11px; color: #64748b; line-height: 1.4; }
+        .syntax-help-content strong { color: #334155; display: block; margin-bottom: 2px; }
+
+        /* Workspace Controllers & Tabs */
+        .tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; border-bottom: 1px solid #cbd5e1; padding-bottom: 8px; }
+        .tab-btn { background: none; border: none; padding: 8px 14px; font-size: 13px; font-weight: 600; color: #64748b; cursor: pointer; border-radius: 4px; transition: all 0.2s; }
+        .tab-btn:hover { background: #f1f5f9; color: #334155; }
+        .tab-btn.active { background: #3b82f6; color: #fff; }
+        .tab-btn.active-canvas { background: #10b981; color: #fff; }
+        
+        .workspace { flex: 1; display: flex; flex-direction: column; overflow-y: auto; gap: 15px; }
+        .hidden { display: none !important; }
+
+        /* Mode 1: Raw Text */
+        #raw-input { flex: 1; width: 100%; padding: 15px; border: 1px solid #cbd5e1; border-radius: 6px; resize: none; font-family: monospace; font-size: 13px; box-sizing: border-box; background-color: #f8fafc; line-height: 1.5; }
+        #raw-input:focus { outline: none; border-color: #3b82f6; background-color: #fff; }
+
+        /* Mode 2: Modular Tree */
+        .tree-root { display: flex; flex-direction: column; gap: 15px; padding-bottom: 20px; }
+        .section-card { background: #ffffff; border: 2px solid #e2e8f0; border-radius: 6px; display: flex; flex-direction: column; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: transform 0.1s; }
+        .section-card.dragging { opacity: 0.4; }
+        .section-header { display: flex; align-items: center; gap: 10px; background: #f8fafc; padding: 8px 12px; border-bottom: 1px solid #e2e8f0; border-radius: 4px 4px 0 0; }
+        .section-header input[type="text"] { flex: 1; font-size: 13px; font-weight: 700; color: #334155; border: 1px solid transparent; background: transparent; padding: 4px; text-transform: uppercase; }
+        .section-header input[type="text"]:focus { border-color: #cbd5e1; background: #fff; outline: none; }
+        
+        .items-container { display: flex; flex-direction: column; gap: 8px; padding: 12px; background: #fbfcfd; min-height: 20px; }
+        .item-card { display: flex; gap: 10px; background: #fff; border: 1px solid #cbd5e1; border-radius: 4px; padding: 8px; transition: transform 0.1s; }
+        .item-card.dragging { opacity: 0.4; }
+        .card-controls { display: flex; flex-direction: column; gap: 6px; align-items: center; justify-content: flex-start; padding-top: 2px; }
+        
+        .drag-handle { color: #94a3b8; font-size: 16px; cursor: grab; user-select: none; }
+        .drag-handle:active { cursor: grabbing; color: #3b82f6; }
+        .section-drag { font-weight: 900; color: #64748b; }
+        .visibility-toggle { width: 16px; height: 16px; cursor: pointer; accent-color: #3b82f6; margin: 0; }
+        
+        /* Modular Mutation Controls */
+        .delete-btn { background: none; border: none; color: #ef4444; font-size: 16px; font-weight: bold; cursor: pointer; padding: 2px 6px; border-radius: 4px; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+        .delete-btn:hover { background: #fee2e2; transform: scale(1.1); }
+        
+        .item-card textarea { flex: 1; min-height: 60px; padding: 8px; border: 1px solid transparent; border-radius: 4px; font-family: monospace; font-size: 12px; resize: vertical; background: transparent; line-height: 1.4; }
+        .item-card textarea:focus { outline: none; border-color: #cbd5e1; background: #fff; }
+
+        .add-item-btn { width: 100%; background: #f8fafc; border: 1px dashed #cbd5e1; color: #64748b; padding: 6px; margin-top: 4px; font-size: 11px; cursor: pointer; border-radius: 4px; transition: 0.2s; }
+        .add-item-btn:hover { background: #f1f5f9; border-color: #94a3b8; color: #1e293b; }
+        .add-section-btn { width: 100%; background: #f1f5f9; border: 2px dashed #cbd5e1; color: #475569; padding: 10px; font-weight: bold; cursor: pointer; border-radius: 6px; transition: 0.2s; }
+        .add-section-btn:hover { background: #e2e8f0; border-color: #94a3b8; color: #1e293b; }
+
+        /* Mode 3 Layout: Canvas Instructions */
+        .canvas-instructions { background: #ecfdf5; border: 1px solid #a7f3d0; padding: 20px; border-radius: 6px; color: #065f46; font-size: 14px; line-height: 1.6; }
+        .canvas-instructions h2 { margin-top: 0; color: #047857; font-size: 16px; }
+
+        /* Dynamic Analog Controls Engine */
+        .controls-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 15px; background: #f8fafc; padding: 16px; border-radius: 6px; border: 1px solid #cbd5e1; align-items: end; }
+        .control-group { display: flex; flex-direction: column; gap: 6px; }
+        .control-group label { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; display: flex; justify-content: space-between; }
+        .control-group label span { color: #3b82f6; }
+        
+        input[type="range"] { width: 100%; accent-color: #3b82f6; cursor: pointer; }
+        select, button { padding: 8px 10px; border-radius: 4px; border: 1px solid #cbd5e1; cursor: pointer; font-size: 12px; font-weight: 600; background: #fff; transition: all 0.15s; }
+        button:hover { background-color: #f1f5f9; border-color: #94a3b8; }
+        button.primary { background-color: #3b82f6; color: white; border: none; }
+        button.primary:hover { background-color: #2563eb; }
+        button.danger { background-color: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+        button.danger:hover { background-color: #fecaca; }
+
+        /* Core Output Canvas Layout */
+        #resume-output { flex: 1; overflow-y: auto; background: #fff; border: 1px solid #e2e8f0; border-radius: 4px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); transition: outline 0.2s; }
+        #resume-output[contenteditable="true"] { cursor: text; outline: 3px dashed #10b981; outline-offset: -3px; }
+        #resume-output[contenteditable="true"]:focus { outline: 3px solid #10b981; }
+
+        /* Print Override Layout Blueprints */
+        @media print {
+            @page {
+                size: letter;
+                margin: 0mm !important; /* Absolute suppression of header, footer, timestamps, titles, and URLs */
+            }
+            html, body {
+                margin: 0 !important;
+                padding: 0 !important;
+                background: #fff !important;
+                height: auto;
+                width: 100%;
+                overflow: visible;
+            }
+            .editor-panel, header, .controls-grid, button, select, .tabs, .syntax-help-container { 
+                display: none !important; 
+            }
+            .preview-panel { 
+                box-shadow: none !important; 
+                border: none !important; 
+                padding: 0 !important; 
+                margin: 0 !important;
+                overflow: visible !important; 
+                width: 100% !important;
+                display: block !important;
+            }
+            #resume-output { 
+                overflow: visible !important; 
+                border: none !important; 
+                box-shadow: none !important; 
+                outline: none !important; 
+                padding: var(--page-pad, 40px) !important; /* Map layout sliders cleanly to target pages */
+                background: #fff !important;
+                width: 100% !important;
+                box-sizing: border-box !important;
+            }
+        }
+
+        /* Fluid Architecture Variables Engine */
+        .resume-content { padding: var(--page-pad, 40px); font-size: var(--base-size, 13px); line-height: var(--base-lh, 1.4); }
+        .resume-content h1, .resume-content h2, .resume-content h3, .resume-content p, .resume-content ul { margin: 0; padding: 0; }
+        .resume-content p { margin-bottom: calc(var(--base-lh) * 4px); line-height: inherit; font-size: inherit; }
+        .resume-content ul { margin-left: 1.4em; margin-bottom: calc(var(--base-lh) * 5px); }
+        .resume-content li { margin-bottom: calc(var(--base-lh) * 2px); line-height: inherit; font-size: inherit; }
+        .resume-content h3 { font-size: inherit; font-weight: bold; margin-top: calc(var(--base-lh) * 4px); margin-bottom: 2px; position: relative; }
+        .resume-content .date { float: right; font-weight: normal; }
+
+        /* THEME MATRICES */
+        .t-1 { font-family: "Times New Roman", Times, serif; color: #000; } .t-1 h1 { font-size: 1.85em; text-align: center; font-weight: bold; text-transform: uppercase; margin-bottom: 0.5em; letter-spacing: 0.5px; } .t-1 h2 { font-size: 1.1em; text-transform: uppercase; border-bottom: 1px solid #000; margin: var(--sect-space, 16px) 0 6px 0; font-weight: bold; letter-spacing: 0.5px; }
+        .t-2 { font-family: Arial, Helvetica, sans-serif; color: #111; } .t-2 h1 { font-size: 2em; color: #00274c; font-weight: 800; text-align: center; border-bottom: 2px solid #00274c; padding-bottom: 4px; margin-bottom: 0.5em; } .t-2 h2 { font-size: 1.1em; color: #00274c; text-transform: uppercase; margin: var(--sect-space, 16px) 0 6px 0; font-weight: bold; border-bottom: 1px solid #cbd5e1; padding-bottom: 2px; }
+        .t-3 { font-family: Garamond, Baskerville, "Baskerville Old Face", serif; color: #050505; } .t-3 h1 { font-size: 2em; text-align: center; font-weight: normal; letter-spacing: 1px; margin-bottom: 0.6em; } .t-3 h2 { font-size: 1.05em; text-transform: uppercase; text-align: center; border-bottom: 1.5px solid #222; margin: var(--sect-space, 18px) auto 8px auto; font-weight: bold; letter-spacing: 1px; } .t-3 h3 { font-style: italic; }
+        .t-4 { font-family: Georgia, serif; color: #1e293b; } .t-4 h1 { font-size: 1.85em; color: #881337; font-weight: 700; text-align: left; } .t-4 h2 { font-size: 1.05em; color: #881337; border-top: 1px solid #f1f5f9; border-bottom: 1px solid #e2e8f0; padding: 4px 0; margin: var(--sect-space, 16px) 0 6px 0; text-transform: uppercase; letter-spacing: 1px; }
+        .t-5 { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #0f172a; } .t-5 h1 { font-size: 1.8em; font-weight: 800; letter-spacing: -0.5px; } .t-5 h2 { font-size: 0.95em; color: #475569; font-weight: 700; text-transform: uppercase; margin: var(--sect-space, 15px) 0 4px 0; border-left: 3px solid #3b82f6; padding-left: 8px; letter-spacing: 0.5px; }
+        .t-6 { font-family: "Century Gothic", AppleGothic, sans-serif; color: #222; } .t-6 h1 { font-size: 1.8em; text-align: center; letter-spacing: 2px; font-weight: 300; text-transform: uppercase; } .t-6 h2 { font-size: 1em; text-transform: uppercase; text-align: center; background: #f8fafc; padding: 3px 0; margin: var(--sect-space, 16px) 0 6px 0; font-weight: 600; letter-spacing: 1.5px; border-top: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; }
+        .t-7 { font-family: "Trebuchet MS", sans-serif; color: #2d3748; } .t-7 h1 { font-size: 2em; color: #0f766e; font-weight: 800; } .t-7 h2 { font-size: 1.05em; color: #0f766e; text-transform: uppercase; border-bottom: 2px solid #0f766e; margin: var(--sect-space, 14px) 0 4px 0; font-weight: 700; }
+        .t-8 { font-family: Cambria, Georgia, serif; color: #111; } .t-8 h1 { font-size: 1.9em; text-align: center; font-style: italic; font-weight: bold; color: #1e3a8a; } .t-8 h2 { font-size: 1.1em; border-bottom: 1px double #1e3a8a; margin: var(--sect-space, 16px) 0 6px 0; color: #1e3a8a; font-weight: bold; }
+        .t-9 { font-family: "Segoe UI", Tahoma, Geneva, sans-serif; color: #334155; } .t-9 h1 { font-size: 1.9em; color: #1e293b; text-transform: uppercase; font-weight: 900; border-left: 6px solid #475569; padding-left: 10px; } .t-9 h2 { font-size: 1.05em; color: #475569; font-weight: 800; text-transform: uppercase; border-bottom: 1px dashed #cbd5e1; margin: var(--sect-space, 14px) 0 4px 0; }
+        .t-10 { font-family: "Book Antiqua", Palatino, serif; color: #000; } .t-10 h1 { font-size: 2em; text-align: center; font-weight: normal; } .t-10 h2 { font-size: 1.05em; text-transform: uppercase; border-bottom: 1px solid #78350f; color: #78350f; margin: var(--sect-space, 18px) 0 6px 0; letter-spacing: 1px; font-weight: bold; }
+        .t-11 { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; color: #1c1917; } .t-11 h1 { font-size: 1.8em; font-weight: 700; text-transform: uppercase; letter-spacing: -0.5px; } .t-11 h2 { font-size: 0.9em; font-weight: 900; text-transform: uppercase; background: #1c1917; color: #fff; padding: 2px 6px; margin: var(--sect-space, 12px) 0 6px 0; letter-spacing: 1px; } .t-11 h3 { border-bottom: 1px solid #f5f5f4; padding-bottom: 2px; }
+        .t-12 { font-family: Palatino, "Palatino Linotype", "URW Palladio L", serif; color: #1f2937; } .t-12 h1 { font-size: 1.9em; color: #064e3b; text-align: center; font-weight: 700; } .t-12 h2 { font-size: 1.1em; text-transform: uppercase; border-bottom: 2px solid #064e3b; color: #064e3b; margin: var(--sect-space, 16px) 0 4px 0; font-weight: bold; letter-spacing: 0.5px; }
+        .t-13 { font-family: Calibri, Candara, Segoe, sans-serif; color: #262626; } .t-13 h1 { font-size: 1.9em; font-weight: bold; color: #1d4ed8; } .t-13 h2 { font-size: 1.1em; text-transform: uppercase; border-bottom: 1.5px solid #1d4ed8; color: #1d4ed8; margin: var(--sect-space, 14px) 0 4px 0; font-weight: bold; }
+        .t-14 { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: #0f172a; } .t-14 h1 { font-size: 1.5em; font-weight: bold; background: #f1f5f9; padding: 4px; border-radius: 4px; } .t-14 h2 { font-size: 1.1em; font-weight: bold; border-bottom: 2px solid #0f172a; margin: var(--sect-space, 14px) 0 4px 0; background: #f8fafc; padding: 2px; } .t-14 h3 { font-weight: bold; text-decoration: underline; }
+        .t-15 { font-family: Verdana, Geneva, sans-serif; color: #333; } .t-15 h1 { font-size: 1.7em; color: #000; text-align: center; font-weight: bold; } .t-15 h2 { font-size: 0.9em; color: #444; text-transform: uppercase; border-bottom: 1px solid #94a3b8; margin: var(--sect-space, 16px) 0 6px 0; padding-bottom: 2px; font-weight: bold; letter-spacing: 1px; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>ChameleonCV // Tri-Sync Engine</h1>
+    </header>
+
+    <div class="main-container">
+        
+        <div class="editor-panel">
+            
+            <div class="syntax-help-container">
+                <button class="syntax-help-trigger" onclick="toggleSyntaxGuide()">
+                    <span>ℹ️ COMPILER SYNTAX REFERENCE MANUAL</span>
+                    <span id="syntax-arrow">▼</span>
+                </button>
+                <div id="syntax-guide" class="syntax-help-content hidden">
+                    <div><strong>Section Headers:</strong> Wrap your section titles in double asterisks (e.g., <strong>**Education**</strong>) to establish a main boundary.</div>
+                    <div><strong>Bullet Frameworks:</strong> Prefix lines using traditional characters like hyphens or dots.</div>
+                    <div><strong>Split Layouts:</strong> Separating text strings cleanly using horizontal bar (<code style="background:#e2e8f0; padding:1px 3px; border-radius:3px;">|</code>) notations handles right-aligned data.</div>
+                </div>
+            </div>
+
+            <div class="tabs">
+                <button class="tab-btn active" id="tab-raw" onclick="switchTab('raw')">1. Text Mode</button>
+                <button class="tab-btn" id="tab-modular" onclick="switchTab('modular')">2. Modular Tree</button>
+                <button class="tab-btn" id="tab-canvas" onclick="switchTab('canvas')">3. Direct Canvas Edit</button>
+            </div>
+
+            <div id="workspace-raw" class="workspace">
+                <textarea id="raw-input" oninput="compileController(false)">
+Ethan Tilak
+https://tilake280.github.io/EthanTilakWebsite/ | (908) 739-1995
+https://linkedin.com/in/ethan-tilak | ethantilak@gmail.com
+
+**Objective**
+Junior Computer Science & Economics student at the University of Michigan seeking project experience in data analytics, software engineering, and applied technology. Interested in leveraging strong quantitative skills, AI expertise, and a passion for interdisciplinary collaboration to contribute to real-world projects across fields such as banking, energy systems, and scientific simulations. Eager to apply machine learning, data visualization, and software engineering to drive innovation and solve complex problems that benefit society on a global scale.
+
+**Education**
+UNIVERSITY OF MICHIGAN, ANN ARBOR
+- Bachelor of Science, Computer Science | Expected May 2028
+- Bachelor of Science, Economics | Expected May 2028
+- GPA: 3.982
+- 2025 Recipient of the William J. Branstrom Freshman Prize, IEEE-HKN EECS Honor Society (Events Officer)
+- University Honors Recipient, 2x Fall and 2x Winter Semesters, James B. Angell Scholar
+
+**Work Experience**
+ACCENTURE, Boston, MA | June 2026 – August 2026
+Incoming Tech Architecture Analyst
+
+NEW PROVIDENCE COMMUNITY POOL, New Providence, NJ
+Front Desk + Office Manager | 2021 – 2025
+• Onboard & train 6 new front desk staff, providing instruction on operational procedures and efficient use of the member database. Add, manage, and track member roster in online database. Respond to member questions/requests.
+
+SCHOOLHOUSE, New Providence, NJ
+SAT Tutor | 2022 – 2024
+• Tutored 20 students nationally for the SAT over 4 weeks in Spring and Summer sessions, twice per week.
+• Improved SAT scores by ~210 points on average.
+
+**Relevant Coursework and Skills**
+- Relevant Coursework: Data Structures and Algorithms, Computer Security, Scientific Computing in R, Computer Organization, Linear Algebra, Discrete Math, Intermediate Micro+Macroeconomic Theory, Game Theory
+- Programming: C, C++, RStudio, Java, Python, HTML/CSS, JavaScript, SQL
+- Technical/AI Skills: Microsoft Office Suite, Git, Github, LLM Proficiency, AI Strategy, AI Integration, OOP
+
+**Leadership and Campus Involvement**
+UNIVERSITY OF MICHIGAN
+• Michigan Hackers – Quant Team Software Developer
+  o Study market patterns to build predictive trading models using statistical and machine learning techniques.
+  o Collaborating with peers to develop Python tools for financial data analysis, leveraging LLMs, Pandas, and NumPy.
+• Michigan Data Science Team – Alzheimer’s Prediction Data Analyst
+  o Develop machine learning models to predict when Alzheimer’s will develop using linear regression, logistic regression, and random forest models, implementing Python Pandas, NumPy, PyTorch, and Matplotlib for visualization with x% accuracy
+• Model Federal Open Market Committee (MFED) – Research Analyst
+  o Wrote and implemented professional feedback on paper regarding U.S. foreign aid’s long-term effects on Ethiopian economic growth based on market research
+  o Initiated and organized networking coffee chats with 3 senior members to receive guidance and discuss economics
+• Gift of Life Bone Marrow Registry – Campus Ambassador
+  o Offered role of campus ambassador, organize and run swabbing events, advertised and persuaded 200+ volunteers to get tested for marrow matches
+
+NEW PROVIDENCE HIGH SCHOOL
+• Vice President, Business Club — Coordinated events and stock market simulations.
+• President, Japanese Club — Organized language/culture exchanges and community engagement.
+• Vice President, Computer Science Club — Led student workshops on programming fundamentals.
+                </textarea>
+            </div>
+
+            <div id="workspace-modular" class="workspace hidden tree-root">
+                </div>
+
+            <div id="workspace-canvas" class="workspace hidden">
+                <div class="canvas-instructions">
+                    <h2>🟢 Live Terminal Active</h2>
+                    <p>You can now click directly onto the resume preview panel on the right and type just like a Google Doc.</p>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="preview-panel">
+            
+            <div class="controls-grid">
+                <div class="control-group" style="grid-column: 1 / -1; margin-bottom: 4px;">
+                    <label>Aesthetic Theme Matrix</label>
+                    <select id="theme-selector" onchange="compileController(false)">
+                        <option value="t-2">2. Corporate Sans (Blue Track)</option>
+                        <option value="t-1">1. Executive Traditional (Serif)</option>
+                        <option value="t-3">3. Wall Street Elite (Garamond)</option>
+                        <option value="t-4">4. Consulting Crimson (Premium Serif)</option>
+                        <option value="t-5">5. Silicon Valley Minimal (ATS Sweeper)</option>
+                        <option value="t-6">6. The London Audit (Century Geo)</option>
+                        <option value="t-7">7. Continuous Horizon (Teal Asset)</option>
+                        <option value="t-8">8. Academic Chancellor (Cambria Blue)</option>
+                        <option value="t-9">9. Heavy Industry Anchor (Charcoal)</option>
+                        <option value="t-10">10. High-End Advisory (Palatino)</option>
+                        <option value="t-11">11. EuroFinance Executive (Compact Black)</option>
+                        <option value="t-12">12. Emerald Wealth (Luxe Forest)</option>
+                        <option value="t-13">13. Hybrid Operational (Calibri Grid)</option>
+                        <option value="t-14">14. Quant Strategy (Structural Mono)</option>
+                        <option value="t-15">15. The Global Standardized (High-Density)</option>
+                    </select>
+                </div>
+                
+                <div class="control-group">
+                    <label>Base Size <span><span id="val-size">13</span>px</span></label>
+                    <input type="range" id="slider-size" min="10" max="18" value="13" step="0.5" oninput="compileController(false)">
+                </div>
+                <div class="control-group">
+                    <label>Line Height <span><span id="val-lh">1.4</span></span></label>
+                    <input type="range" id="slider-lh" min="1.0" max="2.0" value="1.4" step="0.05" oninput="compileController(false)">
+                </div>
+                <div class="control-group">
+                    <label>Header Gap <span><span id="val-space">16</span>px</span></label>
+                    <input type="range" id="slider-space" min="8" max="32" value="16" step="1" oninput="compileController(false)">
+                </div>
+                <div class="control-group">
+                    <label>Page Margins <span><span id="val-pad">40</span>px</span></label>
+                    <input type="range" id="slider-pad" min="0" max="80" value="40" step="5" oninput="compileController(false)">
+                </div>
+            </div>
+
+            <div style="display:flex; gap:8px; margin-bottom:12px;">
+                <button onclick="resetSettings()" class="danger" style="flex:1;">↺ Reset Formatting</button>
+                <button onclick="window.print()" style="flex:1;">Print PDF</button>
+                <button onclick="copyRichText()" class="primary" style="flex:2;">Copy to Clipboard</button>
+            </div>
+
+            <div id="resume-output" class="resume-content t-2" oninput="syncCanvasToRaw()"></div>
+        </div>
+    </div>
+
+    <script>
+        let currentActiveMode = 'raw';
+        let isCanvasEditable = false;
+
+        function switchTab(mode) {
+            if (currentActiveMode === 'canvas') syncCanvasToRaw();
+            else if (currentActiveMode === 'modular') syncTreeToRaw();
+
+            currentActiveMode = mode;
+            
+            document.getElementById('tab-raw').classList.remove('active');
+            document.getElementById('tab-modular').classList.remove('active');
+            document.getElementById('tab-canvas').classList.remove('active', 'active-canvas');
+            
+            document.getElementById('workspace-raw').classList.add('hidden');
+            document.getElementById('workspace-modular').classList.add('hidden');
+            document.getElementById('workspace-canvas').classList.add('hidden');
+
+            const activeBtn = document.getElementById(`tab-${mode}`);
+            activeBtn.classList.add('active');
+            if(mode === 'canvas') activeBtn.classList.add('active-canvas');
+            
+            document.getElementById(`workspace-${mode}`).classList.remove('hidden');
+            
+            if (mode === 'modular') {
+                buildTreeFromRaw();
+            }
+
+            const outputDiv = document.getElementById('resume-output');
+            if (mode === 'canvas') {
+                outputDiv.setAttribute('contenteditable', 'true');
+                isCanvasEditable = true;
+                outputDiv.focus();
+            } else {
+                outputDiv.removeAttribute('contenteditable');
+                isCanvasEditable = false;
+                compileController(true);
+            }
+        }
+
+        function toggleSyntaxGuide() {
+            const block = document.getElementById('syntax-guide');
+            const arrow = document.getElementById('syntax-arrow');
+            if (block.classList.contains('hidden')) { block.classList.remove('hidden'); arrow.innerText = '▲'; } 
+            else { block.classList.add('hidden'); arrow.innerText = '▼'; }
+        }
+
+        function resetSettings() {
+            document.getElementById('theme-selector').value = 't-2';
+            document.getElementById('slider-size').value = 13;
+            document.getElementById('slider-lh').value = 1.4;
+            document.getElementById('slider-space').value = 16;
+            document.getElementById('slider-pad').value = 40;
+            compileController(false);
+        }
+
+        /* --- TRI-SYNC ENGINE: 1. Canvas -> Raw Text --- */
+        function syncCanvasToRaw() {
+            if (!isCanvasEditable) return;
+            const outputDiv = document.getElementById('resume-output');
+            let rawTextLines = [];
+            
+            outputDiv.childNodes.forEach(node => {
+                if (node.nodeType !== Node.ELEMENT_NODE) {
+                    if (node.textContent.trim()) rawTextLines.push(node.textContent.trim());
+                    return;
+                }
+                const tag = node.tagName.toLowerCase();
+                
+                if (tag === 'h1') { rawTextLines.push(node.innerText.trim()); rawTextLines.push(''); } 
+                else if (tag === 'h2') { rawTextLines.push(''); rawTextLines.push('**' + node.innerText.trim() + '**'); } 
+                else if (tag === 'h3') {
+                    let mainText = '', dateText = '';
+                    node.childNodes.forEach(child => {
+                        if (child.nodeType === Node.ELEMENT_NODE && child.classList.contains('date')) dateText = child.innerText.trim();
+                        else mainText += child.textContent;
+                    });
+                    rawTextLines.push(dateText ? mainText.trim() + ' | ' + dateText : mainText.trim());
+                } 
+                else if (tag === 'p') { rawTextLines.push(node.innerText.trim()); } 
+                else if (tag === 'ul') {
+                    node.childNodes.forEach(li => { 
+                        if (li.tagName && li.tagName.toLowerCase() === 'li') {
+                            let prefix = li.getAttribute('data-prefix') || '-';
+                            rawTextLines.push(prefix + ' ' + li.innerText.trim());
+                        }
+                    });
+                } 
+                else if (tag === 'div' || tag === 'br') { if(node.innerText && node.innerText.trim()) rawTextLines.push(node.innerText.trim()); }
+            });
+            
+            document.getElementById('raw-input').value = rawTextLines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+        }
+
+        /* --- TRI-SYNC ENGINE: 2. Tree -> Raw Text --- */
+        function syncTreeToRaw() {
+            let rawLines = [];
+            const sections = document.querySelectorAll('.section-card');
+            sections.forEach(sec => {
+                if (!sec.querySelector('.section-toggle').checked) return;
+                const title = sec.querySelector('.section-title-input').value.trim();
+                if (title) rawLines.push('**' + title + '**');
+                
+                const items = sec.querySelectorAll('.item-card');
+                items.forEach(item => {
+                    if (!item.querySelector('.item-toggle').checked) return;
+                    const text = item.querySelector('textarea').value.trim();
+                    if (text) {
+                        rawLines.push(text);
+                        rawLines.push('');
+                    }
+                });
+            });
+            document.getElementById('raw-input').value = rawLines.join('\n').trim();
+            compileController(true);
+        }
+
+        /* --- TRI-SYNC ENGINE: 3. Raw Text -> Tree (Builder) --- */
+        function buildTreeFromRaw() {
+            const raw = document.getElementById('raw-input').value;
+            const lines = raw.split('\n');
+            let sections = [];
+            let currSection = {title: '', items: []};
+            let currItemLines = [];
+
+            lines.forEach(line => {
+                let tLine = line.trim();
+                const isHeader = tLine.startsWith('**') && tLine.endsWith('**') && tLine.length > 4;
+
+                if (isHeader) {
+                    if (currItemLines.length > 0) { currSection.items.push(currItemLines.join('\n')); currItemLines = []; }
+                    if (currSection.title || currSection.items.length > 0) sections.push(currSection);
+                    currSection = {title: tLine.slice(2, -2).trim(), items: []};
+                } else if (tLine === '') {
+                    if (currItemLines.length > 0) { currSection.items.push(currItemLines.join('\n')); currItemLines = []; }
+                } else {
+                    currItemLines.push(line);
+                }
+            });
+            if (currItemLines.length > 0) currSection.items.push(currItemLines.join('\n'));
+            if (currSection.title || currSection.items.length > 0) sections.push(currSection);
+
+            const treeRoot = document.getElementById('workspace-modular');
+            treeRoot.innerHTML = ''; 
+
+            sections.forEach((sec) => {
+                const secCard = document.createElement('div');
+                secCard.className = 'section-card';
+                secCard.draggable = true;
+                secCard.ondragstart = (e) => dStart(e, 'section');
+                secCard.ondragover = dOver;
+                secCard.ondrop = (e) => dDrop(e, 'section');
+
+                let titleHTML = sec.title ? sec.title : '';
+                let placeholder = sec.title ? '' : 'placeholder="(Header Block)"';
+
+                let itemsHTML = sec.items.map((item) => `
+                    <div class="item-card" draggable="true" ondragstart="dStart(event, 'item')" ondragover="dOver(event)" ondrop="dDrop(event, 'item')">
+                        <div class="card-controls">
+                            <span class="drag-handle">↕</span>
+                            <input type="checkbox" checked class="visibility-toggle item-toggle" onchange="syncTreeToRaw()">
+                            <button class="delete-btn" onclick="removeTreeItem(this)" title="Delete Item">×</button>
+                        </div>
+                        <textarea oninput="syncTreeToRaw()">${item}</textarea>
+                    </div>
+                `).join('');
+
+                secCard.innerHTML = `
+                    <div class="section-header">
+                        <span class="drag-handle section-drag">☰</span>
+                        <input type="checkbox" checked class="visibility-toggle section-toggle" onchange="syncTreeToRaw()">
+                        <input type="text" class="section-title-input" value="${titleHTML}" ${placeholder} oninput="syncTreeToRaw()">
+                        <button class="delete-btn" onclick="removeTreeSection(this)" title="Delete Section">×</button>
+                    </div>
+                    <div class="items-container">
+                        ${itemsHTML}
+                        <button class="add-item-btn" onclick="addTreeItem(this)">+ Add Item Block</button>
+                    </div>
+                `;
+                treeRoot.appendChild(secCard);
+            });
+
+            const addSecBtn = document.createElement('button');
+            addSecBtn.className = 'add-section-btn';
+            addSecBtn.innerText = '+ Add New Section';
+            addSecBtn.onclick = addTreeSection;
+            treeRoot.appendChild(addSecBtn);
+        }
+
+        function addTreeItem(btn) {
+            const container = btn.parentElement;
+            const div = document.createElement('div');
+            div.className = 'item-card'; div.draggable = true;
+            div.ondragstart = (e) => dStart(e, 'item'); div.ondragover = dOver; div.ondrop = (e) => dDrop(e, 'item');
+            div.innerHTML = `
+                <div class="card-controls">
+                    <span class="drag-handle">↕</span>
+                    <input type="checkbox" checked class="visibility-toggle item-toggle" onchange="syncTreeToRaw()">
+                    <button class="delete-btn" onclick="removeTreeItem(this)" title="Delete Item">×</button>
+                </div>
+                <textarea oninput="syncTreeToRaw()"></textarea>`;
+            container.insertBefore(div, btn);
+            syncTreeToRaw();
+        }
+
+        function addTreeSection() {
+            const treeRoot = document.getElementById('workspace-modular');
+            const secCard = document.createElement('div');
+            secCard.className = 'section-card'; secCard.draggable = true;
+            secCard.ondragstart = (e) => dStart(e, 'section'); secCard.ondragover = dOver; secCard.ondrop = (e) => dDrop(e, 'section');
+            secCard.innerHTML = `
+                <div class="section-header">
+                    <span class="drag-handle section-drag">☰</span><input type="checkbox" checked class="visibility-toggle section-toggle" onchange="syncTreeToRaw()">
+                    <input type="text" class="section-title-input" placeholder="NEW SECTION" oninput="syncTreeToRaw()">
+                    <button class="delete-btn" onclick="removeTreeSection(this)" title="Delete Section">×</button>
+                </div>
+                <div class="items-container">
+                    <div class="item-card" draggable="true" ondragstart="dStart(event, 'item')" ondragover="dOver(event)" ondrop="dDrop(event, 'item')">
+                        <div class="card-controls">
+                            <span class="drag-handle">↕</span>
+                            <input type="checkbox" checked class="visibility-toggle item-toggle" onchange="syncTreeToRaw()">
+                            <button class="delete-btn" onclick="removeTreeItem(this)" title="Delete Item">×</button>
+                        </div>
+                        <textarea oninput="syncTreeToRaw()"></textarea>
+                    </div>
+                    <button class="add-item-btn" onclick="addTreeItem(this)">+ Add Item Block</button>
+                </div>
+            `;
+            treeRoot.insertBefore(secCard, treeRoot.lastElementChild);
+            syncTreeToRaw();
+        }
+
+        function removeTreeItem(btn) {
+            btn.closest('.item-card').remove();
+            syncTreeToRaw();
+        }
+
+        function removeTreeSection(btn) {
+            btn.closest('.section-card').remove();
+            syncTreeToRaw();
+        }
+
+        /* --- Nested Drag and Drop Engine --- */
+        let sourceNode = null; let activeDragLevel = null;
+        function dStart(e, level) { sourceNode = e.currentTarget; activeDragLevel = level; e.dataTransfer.effectAllowed = 'move'; setTimeout(() => sourceNode.classList.add('dragging'), 0); }
+        function dOver(e) { e.preventDefault(); }
+        function dDrop(e, level) {
+            e.preventDefault(); e.stopPropagation();
+            if (sourceNode) sourceNode.classList.remove('dragging');
+            if (activeDragLevel !== level || !sourceNode || sourceNode === e.currentTarget) return; 
+            
+            const targetNode = e.currentTarget;
+            if (sourceNode.parentNode === targetNode.parentNode) {
+                const children = Array.from(sourceNode.parentNode.children);
+                const sourceIdx = children.indexOf(sourceNode);
+                const targetIdx = children.indexOf(targetNode);
+                if (sourceIdx < targetIdx) targetNode.after(sourceNode); else targetNode.before(sourceNode);
+                syncTreeToRaw();
+            }
+        }
+        document.addEventListener('dragend', () => { if (sourceNode) sourceNode.classList.remove('dragging'); });
+
+        /* --- Master Compiler Loop Engine (Raw Text -> Visual) --- */
+        function compileController(forceRender = false) {
+            const size = document.getElementById('slider-size').value; const lh = document.getElementById('slider-lh').value;
+            const space = document.getElementById('slider-space').value; const pad = document.getElementById('slider-pad').value;
+            
+            document.getElementById('val-size').innerText = size; document.getElementById('val-lh').innerText = lh;
+            document.getElementById('val-space').innerText = space; document.getElementById('val-pad').innerText = pad;
+
+            const outputDiv = document.getElementById('resume-output');
+            outputDiv.style.setProperty('--base-size', size + 'px'); outputDiv.style.setProperty('--base-lh', lh);
+            outputDiv.style.setProperty('--sect-space', space + 'px'); outputDiv.style.setProperty('--page-pad', pad + 'px');
+            outputDiv.className = `resume-content ${document.getElementById('theme-selector').value}`;
+
+            if (isCanvasEditable && !forceRender) { syncCanvasToRaw(); return; }
+
+            const lines = document.getElementById('raw-input').value.split('\n');
+            let htmlHTML = ''; let insideListBlock = false; let firstLineProcessed = true;
+
+            lines.forEach(lineText => {
+                const cleanLine = lineText.trim();
+                if (!cleanLine) { if (insideListBlock) { htmlHTML += '</ul>'; insideListBlock = false; } return; }
+                if (firstLineProcessed) { htmlHTML += `<h1>${cleanLine}</h1>`; firstLineProcessed = false; return; }
+
+                const isExplicitHeader = cleanLine.startsWith('**') && cleanLine.endsWith('**') && cleanLine.length > 4;
+
+                if (isExplicitHeader) {
+                    if (insideListBlock) { htmlHTML += '</ul>'; insideListBlock = false; }
+                    htmlHTML += `<h2>${cleanLine.slice(2, -2).trim()}</h2>`;
+                } 
+                else if (cleanLine.startsWith('-') || cleanLine.startsWith('•') || cleanLine.startsWith('o')) {
+                    if (!insideListBlock) { htmlHTML += '<ul>'; insideListBlock = true; }
+                    let char = cleanLine[0];
+                    let indentStyle = (char === 'o') ? 'style="list-style-type: circle; margin-left: 20px;"' : '';
+                    htmlHTML += `<li data-prefix="${char}" ${indentStyle}>${cleanLine.substring(1).trim()}</li>`;
+                } 
+                else {
+                    if (insideListBlock) { htmlHTML += '</ul>'; insideListBlock = false; }
+                    if (cleanLine.includes('|')) {
+                        const tokens = cleanLine.split('|');
+                        htmlHTML += `<h3>${tokens[0].trim()} <span class="date">${tokens.slice(1).join(' | ').trim()}</span></h3>`;
+                    } else { htmlHTML += `<p>${cleanLine}</p>`; }
+                }
+            });
+
+            if (insideListBlock) { htmlHTML += '</ul>'; }
+            outputDiv.innerHTML = htmlHTML;
+        }
+
+        /* --- GOOGLE DOCS FLATTENING ENGINE --- */
+        function copyRichText() {
+            const outputDiv = document.getElementById('resume-output');
+            
+            // Build absolute layout clone
+            const clone = outputDiv.cloneNode(true);
+            const computedStyle = window.getComputedStyle(outputDiv);
+            
+            const fontFamily = computedStyle.fontFamily;
+            const fontSize = computedStyle.fontSize;
+            const lineHeight = computedStyle.lineHeight;
+            const color = computedStyle.color;
+            
+            clone.style.fontFamily = fontFamily;
+            clone.style.fontSize = fontSize;
+            clone.style.lineHeight = lineHeight;
+            clone.style.color = color;
+            clone.style.padding = "0px"; 
+
+            // Convert dynamic elements into absolute layout components
+            const h1s = clone.querySelectorAll('h1');
+            h1s.forEach(el => {
+                const style = window.getComputedStyle(outputDiv.querySelector('h1') || el);
+                el.style.fontSize = style.fontSize;
+                el.style.fontFamily = fontFamily;
+                el.style.fontWeight = "bold";
+                el.style.textAlign = style.textAlign;
+                el.style.textTransform = style.textTransform;
+                el.style.marginBottom = style.marginBottom;
+                el.style.color = style.color;
+                el.style.borderBottom = style.borderBottom;
+            });
+            
+            const h2s = clone.querySelectorAll('h2');
+            h2s.forEach(el => {
+                const realEl = outputDiv.querySelector('h2') || el;
+                const style = window.getComputedStyle(realEl);
+                el.style.fontSize = style.fontSize;
+                el.style.fontFamily = fontFamily;
+                el.style.fontWeight = "bold";
+                el.style.textTransform = style.textTransform;
+                el.style.borderBottom = style.borderBottom;
+                el.style.borderTop = style.borderTop;
+                el.style.background = style.background;
+                el.style.padding = style.padding;
+                el.style.marginTop = style.marginTop;
+                el.style.marginBottom = style.marginBottom;
+                el.style.color = style.color;
+                el.style.letterSpacing = style.letterSpacing;
+            });
+
+            // Convert Split Header blocks into Borderless structural tables for Google Docs
+            const h3s = clone.querySelectorAll('h3');
+            h3s.forEach(el => {
+                const realEl = outputDiv.querySelector('h3') || el;
+                const style = window.getComputedStyle(realEl);
+                const dateSpan = el.querySelector('.date');
+                
+                if (dateSpan) {
+                    const dateText = dateSpan.innerText;
+                    dateSpan.remove();
+                    const mainText = el.innerText.trim();
+                    
+                    el.innerHTML = `
+                        <table style="width:100%; border-collapse:collapse; border:none; margin-top:${style.marginTop}; margin-bottom:${style.marginBottom};">
+                            <tr style="border:none;">
+                                <td style="border:none; padding:0; font-family:${fontFamily}; font-size:${fontSize}; font-weight:bold; color:${style.color}; text-align:left;">${mainText}</td>
+                                <td style="border:none; padding:0; font-family:${fontFamily}; font-size:${fontSize}; font-weight:normal; color:${style.color}; text-align:right;">${dateText}</td>
+                            </tr>
+                        </table>
+                    `;
+                } else {
+                    el.style.fontSize = fontSize;
+                    el.style.fontFamily = fontFamily;
+                    el.style.fontWeight = "bold";
+                    el.style.marginTop = style.marginTop;
+                    el.style.marginBottom = style.marginBottom;
+                    el.style.color = style.color;
+                }
+            });
+
+            const ps = clone.querySelectorAll('p');
+            ps.forEach(el => {
+                const realEl = outputDiv.querySelector('p') || el;
+                const style = window.getComputedStyle(realEl);
+                el.style.fontSize = fontSize;
+                el.style.fontFamily = fontFamily;
+                el.style.lineHeight = lineHeight;
+                el.style.marginBottom = style.marginBottom;
+            });
+
+            const uls = clone.querySelectorAll('ul');
+            uls.forEach(el => {
+                const realEl = outputDiv.querySelector('ul') || el;
+                const style = window.getComputedStyle(realEl);
+                el.style.marginLeft = "20px";
+                el.style.marginBottom = style.marginBottom;
+            });
+
+            const lis = clone.querySelectorAll('li');
+            lis.forEach(el => {
+                const realEl = outputDiv.querySelector('li') || el;
+                const style = window.getComputedStyle(realEl);
+                el.style.fontSize = fontSize;
+                el.style.fontFamily = fontFamily;
+                el.style.lineHeight = lineHeight;
+                el.style.marginBottom = style.marginBottom;
+            });
+
+            const container = document.createElement('div');
+            container.appendChild(clone);
+            container.style.position = 'fixed';
+            container.style.pointerEvents = 'none';
+            container.style.opacity = '0';
+            document.body.appendChild(container);
+
+            const htmlBlob = new Blob([container.innerHTML], { type: 'text/html' });
+            const textBlob = new Blob([outputDiv.innerText], { type: 'text/plain' });
+            
+            if (navigator.clipboard && navigator.clipboard.write) {
+                navigator.clipboard.write([
+                    new ClipboardItem({ 'text/html': htmlBlob, 'text/plain': textBlob })
+                ]).then(() => {
+                    alert('✨ Layout optimized for Google Docs! Paste directly using Ctrl+V or Cmd+V.');
+                }).catch(() => legacyCopy(container));
+            } else {
+                legacyCopy(container);
+            }
+            
+            setTimeout(() => document.body.removeChild(container), 100);
+        }
+
+        function legacyCopy(container) {
+            const range = document.createRange(); range.selectNode(container);
+            window.getSelection().removeAllRanges(); window.getSelection().addRange(range);
+            try { document.execCommand('copy'); alert('✨ Layout optimized for Google Docs! Paste directly using Ctrl+V or Cmd+V.'); } 
+            catch (err) { alert('Buffer read error. Please manually copy selection.'); }
+            window.getSelection().removeAllRanges();
+        }
+
+        compileController(true);
+    </script>
+</body>
+</html>
