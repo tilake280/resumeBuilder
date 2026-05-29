@@ -10,6 +10,10 @@
         header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #cbd5e1; padding-bottom: 10px; }
         header h1 { font-size: 18px; font-weight: 700; margin: 0; color: #0f172a; }
         
+        /* Save/Load Controls */
+        .header-btn { background: #fff; border: 1px solid #cbd5e1; padding: 6px 12px; border-radius: 4px; font-size: 12px; cursor: pointer; color: #475569; font-weight: 700; transition: all 0.2s; display: inline-block; }
+        .header-btn:hover { background: #f1f5f9; color: #0f172a; border-color: #94a3b8; }
+        
         .main-container { display: flex; gap: 20px; flex: 1; overflow: hidden; }
         .editor-panel, .preview-panel { flex: 1; display: flex; flex-direction: column; background: #fff; border-radius: 8px; border: 1px solid #cbd5e1; padding: 20px; overflow: hidden; }
         
@@ -161,6 +165,13 @@
 
     <header>
         <h1>ChameleonCV - Tri-Sync Engine</h1>
+        <div style="display: flex; gap: 10px;">
+            <button class="header-btn" onclick="saveProject()">💾 Save Project</button>
+            <label class="header-btn">
+                📂 Load Project
+                <input type="file" accept=".json" onchange="loadProject(event)" style="display: none;">
+            </label>
+        </div>
     </header>
 
     <div class="main-container">
@@ -259,8 +270,8 @@ NEW PROVIDENCE HIGH SCHOOL
                 <div class="control-group" style="grid-column: 1 / -1; margin-bottom: 4px;">
                     <label>Aesthetic Theme Matrix</label>
                     <select id="theme-selector" onchange="compileController(false)">
-                        <option value="t-2">2. Corporate Sans (Blue Track)</option>
                         <option value="t-1">1. Executive Traditional (Serif)</option>
+                        <option value="t-2">2. Corporate Sans (Blue Track)</option>
                         <option value="t-3">3. Wall Street Elite (Garamond)</option>
                         <option value="t-4">4. Consulting Crimson (Premium Serif)</option>
                         <option value="t-5">5. Silicon Valley Minimal (ATS Sweeper)</option>
@@ -308,6 +319,63 @@ NEW PROVIDENCE HIGH SCHOOL
     <script>
         let currentActiveMode = 'raw';
         let isCanvasEditable = false;
+
+        /* --- PROJECT DATA MANAGEMENT (SAVE/LOAD) --- */
+        function saveProject() {
+            if (currentActiveMode === 'canvas') syncCanvasToRaw();
+            else if (currentActiveMode === 'modular') syncTreeToRaw();
+
+            const projectData = {
+                text: document.getElementById('raw-input').value,
+                settings: {
+                    theme: document.getElementById('theme-selector').value,
+                    size: document.getElementById('slider-size').value,
+                    lh: document.getElementById('slider-lh').value,
+                    space: document.getElementById('slider-space').value,
+                    pad: document.getElementById('slider-pad').value
+                }
+            };
+
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(projectData));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", "chameleon_resume.json");
+            document.body.appendChild(downloadAnchorNode); 
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        }
+
+        function loadProject(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const projectData = JSON.parse(e.target.result);
+                    
+                    if (projectData.text !== undefined) {
+                        document.getElementById('raw-input').value = projectData.text;
+                    }
+                    
+                    if (projectData.settings) {
+                        if (projectData.settings.theme) document.getElementById('theme-selector').value = projectData.settings.theme;
+                        if (projectData.settings.size) document.getElementById('slider-size').value = projectData.settings.size;
+                        if (projectData.settings.lh) document.getElementById('slider-lh').value = projectData.settings.lh;
+                        if (projectData.settings.space) document.getElementById('slider-space').value = projectData.settings.space;
+                        if (projectData.settings.pad) document.getElementById('slider-pad').value = projectData.settings.pad;
+                    }
+
+                    if (currentActiveMode === 'modular') buildTreeFromRaw();
+                    compileController(true);
+                    
+                } catch (err) {
+                    alert('Error loading project file. Please ensure it is a valid ChameleonCV .json file.');
+                }
+                event.target.value = ''; // reset input
+            };
+            reader.readAsText(file);
+        }
 
         function switchTab(mode) {
             if (currentActiveMode === 'canvas') syncCanvasToRaw();
